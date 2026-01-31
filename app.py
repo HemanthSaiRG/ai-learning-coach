@@ -4,14 +4,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # ======================================================
-# MOBILE TAP-TO-START (FINAL FIX FOR STREAMLIT CLOUD)
+# TAP TO START (FINAL MOBILE + CLOUD SAFE FIX)
 # ======================================================
-ua = st.request.headers.get("user-agent", "").lower()
-IS_MOBILE = any(x in ua for x in ["iphone", "android", "mobile"])
-
-if IS_MOBILE and "started" not in st.session_state:
-    st.markdown("## 📱 AI Learning Coach")
-    st.info("Tap start to load app (mobile optimized)")
+if "started" not in st.session_state:
+    st.markdown("## 🚀 AI Learning Coach")
+    st.info("Tap start to load app (prevents mobile timeout)")
     if st.button("▶ Start"):
         st.session_state.started = True
         st.rerun()
@@ -27,17 +24,10 @@ st.set_page_config(
 )
 
 # ======================================================
-# MODE (DEMO FOR MOBILE)
+# DEMO MODE (SAFE DEFAULT FOR MOBILE)
 # ======================================================
-if IS_MOBILE:
-    st.session_state["DEMO_MODE"] = True
-else:
-    st.session_state.setdefault("DEMO_MODE", False)
-
-if st.session_state["DEMO_MODE"]:
-    st.warning("⚡ Demo Mode (Fast Mobile Mode)")
-else:
-    st.success("🧠 Full AI Mode")
+st.session_state.setdefault("DEMO_MODE", True)
+st.warning("⚡ Demo Mode (Fast & Stable)")
 
 # ======================================================
 # NAVIGATION
@@ -48,34 +38,31 @@ page = st.sidebar.radio(
 )
 
 # ======================================================
-# SAFE AI
+# DEMO AI (NO DEPENDENCIES)
 # ======================================================
 def demo_ai(topic, confusions, time_spent):
     return f"""
-📘 Demo AI Tutor
+📘 **Demo AI Tutor**
 
 Topic: {topic}
 Confusions: {confusions}
 Time spent: {time_spent} min
 
-Plan:
-1. Revise basics
-2. Practice 5 problems
-3. Watch one video
-4. Revise tomorrow
+✅ Explanation:
+Revise basics first, then practice 5 problems.
+
+📌 Weak areas:
+- Needs revision
+- Practice required
+
+📅 Plan:
+Day 1: Basics  
+Day 2: Practice  
+Day 3: Revise & test
 """
 
-def get_ai():
-    if st.session_state["DEMO_MODE"]:
-        return None
-    try:
-        from src.ai_engine import analyze_learning
-        return analyze_learning
-    except:
-        return None
-
 # ======================================================
-# SAFE MEMORY
+# SAFE MEMORY (NO CRASH)
 # ======================================================
 def load_data():
     try:
@@ -92,7 +79,7 @@ def save_data(text, meta):
         pass
 
 # ======================================================
-# STUDY
+# STUDY PAGE
 # ======================================================
 if page == "Study":
     st.header("📚 Study")
@@ -102,11 +89,7 @@ if page == "Study":
     time_spent = st.number_input("Time spent (minutes)", 1, 300, 30)
 
     if st.button("Analyze"):
-        ai = get_ai()
-        if ai:
-            result = ai(topic, confusions, time_spent)
-        else:
-            result = demo_ai(topic, confusions, time_spent)
+        result = demo_ai(topic, confusions, time_spent)
 
         save_data(
             f"{topic}: {confusions}",
@@ -120,26 +103,25 @@ if page == "Study":
         st.success(result)
 
 # ======================================================
-# UPLOAD
+# UPLOAD PAGE
 # ======================================================
 elif page == "Upload":
     st.header("📤 Upload Material")
-    st.info("PDF upload available (stored locally)")
     st.file_uploader("Upload PDF", type=["pdf"])
 
 # ======================================================
-# PLANNER
+# PLANNER PAGE
 # ======================================================
 elif page == "Planner":
-    st.header("🗓 Planner")
+    st.header("🗓 Study Planner")
     st.markdown("""
-- Day 1: Revise basics
-- Day 2: Practice
-- Day 3: Test yourself
+- Day 1: Revise basics  
+- Day 2: Practice  
+- Day 3: Mock test  
 """)
 
 # ======================================================
-# DAILY
+# DAILY PAGE
 # ======================================================
 elif page == "Daily":
     st.header("📆 Daily Tasks")
@@ -149,7 +131,7 @@ elif page == "Daily":
     st.success("Consistency beats intensity 💪")
 
 # ======================================================
-# ANALYTICS
+# ANALYTICS PAGE
 # ======================================================
 elif page == "Analytics":
     st.header("📊 Analytics")
@@ -159,32 +141,36 @@ elif page == "Analytics":
         df = pd.DataFrame(data)
         if "meta" in df.columns:
             df["time_spent"] = df["meta"].apply(lambda x: x.get("time_spent", 0))
-            df["date"] = pd.to_datetime(df["meta"].apply(lambda x: x.get("time", datetime.now())))
+            df["date"] = pd.to_datetime(
+                df["meta"].apply(lambda x: x.get("time", datetime.now()))
+            )
+
             weekly = df.resample("W", on="date").sum(numeric_only=True)
 
             fig, ax = plt.subplots()
             ax.plot(weekly.index, weekly["time_spent"])
+            ax.set_title("Weekly Study Time")
             ax.set_ylabel("Minutes")
             st.pyplot(fig)
     else:
         st.info("No data yet")
 
 # ======================================================
-# ABOUT
+# ABOUT PAGE
 # ======================================================
 elif page == "About":
     st.markdown("""
 # 🎓 AI Learning Coach
 
-A **mobile-safe AI study system** designed for real students.
+A **mobile-safe AI study system** built for students.
 
 ### Features
-- Works on mobile without crash
+- No mobile timeout
+- Works on slow internet
 - Demo AI mode (free)
-- Full AI on desktop
 - Planner + Analytics
-- PDF support
-- Cloud-safe architecture
+- PDF upload
+- Cloud safe
 
 Built by **Hemanth Sai** 💙
 """)
