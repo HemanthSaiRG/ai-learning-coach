@@ -1,9 +1,7 @@
+pypdf
 streamlit
 pandas
 matplotlib
 numpy
-sentence-transformers
-faiss-cpu
 python-dotenv
 openai
-pypdf
