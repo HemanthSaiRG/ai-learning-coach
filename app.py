@@ -8,11 +8,17 @@ import os
 from ui.components import header, input_form
 from ui.auth_ui import login_ui
 from ui.upload_ui import upload_ui
-from ui.planner_ui import planner_ui          # ✅ NEW IMPORT
+from ui.planner_ui import planner_ui
+from ui.export_ui import export_ui
 from src.ai_engine import analyze_learning
 from src.memory_engine import add_memory, load_memory
 
-st.set_page_config(page_title="AI Learning Coach", layout="centered")
+# ---------- PAGE CONFIG ----------
+st.set_page_config(
+    page_title="AI Study OS",
+    page_icon="🎓",
+    layout="wide"
+)
 
 # ---------- AUTH ----------
 if "user" not in st.session_state:
@@ -23,96 +29,184 @@ if "user" not in st.session_state:
 user_dir = f"data/users/{st.session_state['user']}"
 os.makedirs(user_dir, exist_ok=True)
 
-# ---------- PDF UPLOAD ----------
-upload_ui(user_dir)
+# ---------- SIDEBAR ----------
+st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
+page = st.sidebar.radio(
+    "Navigate",
+    [
+        "📘 Study",
+        "📄 Upload",
+        "🗓 Planner",
+        "☀️ Daily",
+        "📊 Analytics",
+        "💾 Backup",
+        "ℹ️ About"
+    ]
+)
 
-# ---------- STUDY PLANNER ----------
-planner_ui(user_dir)                           # ✅ NEW CALL
+# ---------- GLOBAL STYLE ----------
+st.markdown("""
+<style>
+h1, h2, h3 { color: #2E86C1; }
+.block-container { padding-top: 1rem; }
+</style>
+""", unsafe_allow_html=True)
 
-# ---------- UI ----------
-header()
+# ==========================================================
+# 📘 STUDY PAGE
+# ==========================================================
+if page == "📘 Study":
+    header()
+    st.markdown("### 🧠 Learn smarter, not harder")
 
-topic, confusions, time_spent, submitted = input_form()
+    topic, confusions, time_spent, submitted = input_form()
 
-if submitted:
-    # ✅ UPDATED AI CALL
-    result = analyze_learning(topic, confusions, time_spent, user_dir)
+    if submitted:
+        result = analyze_learning(topic, confusions, time_spent, user_dir)
 
-    # ---------- SAVE MEMORY ----------
-    add_memory(
-        f"{topic}. Confusions: {confusions}",
-        {
+        # Save memory
+        add_memory(
+            f"{topic}. Confusions: {confusions}",
+            {
+                "topic": topic,
+                "time_spent": time_spent,
+                "user": st.session_state["user"]
+            }
+        )
+
+        # Progress tracking
+        progress_file = f"{user_dir}/subjects.json"
+        try:
+            with open(progress_file, "r") as f:
+                subjects = json.load(f)
+        except:
+            subjects = []
+
+        subjects.append({
             "topic": topic,
             "time_spent": time_spent,
-            "user": st.session_state["user"]
-        }
-    )
+            "status": "studied",
+            "date": datetime.now().isoformat()
+        })
 
-    # ---------- AUTO PROGRESS TRACKING ----------
-    progress_file = f"{user_dir}/subjects.json"
+        with open(progress_file, "w") as f:
+            json.dump(subjects, f, indent=2)
 
-    try:
-        with open(progress_file, "r") as f:
-            subjects = json.load(f)
-    except:
-        subjects = []
+        st.subheader("✅ AI Feedback")
+        st.success(result)
 
-    subjects.append({
-        "topic": topic,
-        "time_spent": time_spent,
-        "status": "studied",
-        "date": datetime.now().isoformat()
-    })
+# ==========================================================
+# 📄 UPLOAD PAGE
+# ==========================================================
+if page == "📄 Upload":
+    st.markdown("## 📄 Upload Study Material")
+    upload_ui(user_dir)
 
-    with open(progress_file, "w") as f:
-        json.dump(subjects, f, indent=2)
+# ==========================================================
+# 🗓 PLANNER PAGE
+# ==========================================================
+if page == "🗓 Planner":
+    st.markdown("## 🗓 Study Planner")
+    planner_ui(user_dir)
 
-    st.subheader("Analysis Result")
-    st.success(result)
+# ==========================================================
+# ☀️ DAILY PAGE (NEW INTELLIGENCE)
+# ==========================================================
+if page == "☀️ Daily":
+    st.markdown("## ☀️ Daily Focus")
 
-# ---------- DASHBOARD ----------
-st.divider()
-st.subheader("📈 Weekly Analytics")
+    today = datetime.now().strftime("%Y-%m-%d")
+    daily_file = f"{user_dir}/daily.json"
 
-data = load_memory()
-
-# filter per user
-data = [d for d in data if d.get("meta", {}).get("user") == st.session_state["user"]]
-
-if data:
-    df = pd.DataFrame(data)
-
-    if "time" in df.columns:
-        df["date"] = pd.to_datetime(df["time"], errors="coerce")
+    if os.path.exists(daily_file):
+        with open(daily_file, "r") as f:
+            daily = json.load(f)
     else:
-        df["date"] = datetime.now()
+        daily = {}
 
-    df["time_spent"] = df["meta"].apply(
-        lambda x: x.get("time_spent", 0) if isinstance(x, dict) else 0
-    )
+    focus = st.text_input("🎯 What will you focus on today?", daily.get(today, ""))
 
-    weekly = df.resample("W", on="date").sum(numeric_only=True)
+    if st.button("Save Today’s Focus"):
+        daily[today] = focus
+        with open(daily_file, "w") as f:
+            json.dump(daily, f, indent=2)
+        st.success("Saved! Stay consistent 💪")
 
-    fig, ax = plt.subplots()
-    ax.plot(weekly.index, weekly["time_spent"])
-    ax.set_title("Weekly Study Time")
-    ax.set_ylabel("Minutes")
-    st.pyplot(fig)
+    if daily.get(today):
+        st.info(f"📌 Today’s focus: **{daily[today]}**")
 
-    # ---------- INSIGHTS ----------
-    st.subheader("🧩 Insights")
-    most_common = (
-        df["meta"]
-        .apply(lambda x: x.get("topic") if isinstance(x, dict) else None)
-        .value_counts()
-        .head(3)
-    )
+# ==========================================================
+# 📊 ANALYTICS PAGE
+# ==========================================================
+if page == "📊 Analytics":
+    st.markdown("## 📊 Learning Analytics")
 
-    if not most_common.empty:
-        st.write("Most studied topics:")
-        st.write(most_common)
+    data = load_memory()
+    data = [d for d in data if d.get("meta", {}).get("user") == st.session_state["user"]]
+
+    if data:
+        df = pd.DataFrame(data)
+        df["date"] = pd.to_datetime(df.get("time", datetime.now()), errors="coerce")
+        df["time_spent"] = df["meta"].apply(
+            lambda x: x.get("time_spent", 0) if isinstance(x, dict) else 0
+        )
+
+        weekly = df.resample("W", on="date").sum(numeric_only=True)
+
+        fig, ax = plt.subplots()
+        ax.plot(weekly.index, weekly["time_spent"])
+        ax.set_title("Weekly Study Time")
+        ax.set_ylabel("Minutes")
+        st.pyplot(fig)
+
+        st.markdown("### 🔁 Most Studied Topics")
+        st.write(
+            df["meta"]
+            .apply(lambda x: x.get("topic") if isinstance(x, dict) else None)
+            .value_counts()
+            .head(5)
+        )
     else:
-        st.info("No topics yet.")
+        st.info("No data yet.")
 
-else:
-    st.info("No data yet. Start studying to see analytics.")
+# ==========================================================
+# 💾 BACKUP PAGE
+# ==========================================================
+if page == "💾 Backup":
+    st.markdown("## 💾 Export & Backup")
+    export_ui(user_dir)
+
+# ==========================================================
+# ℹ️ ABOUT PAGE (PREMIUM)
+# ==========================================================
+if page == "ℹ️ About":
+    st.markdown("""
+    ## 🎓 AI Study OS
+
+    **AI Study OS** is an offline-first intelligent learning system that helps students
+    study smarter using AI, memory, and analytics.
+
+    ### 🚀 Features
+    - AI Tutor (PDF + RAG based)
+    - Automatic progress tracking
+    - Study planner & daily focus
+    - Learning analytics
+    - Multi-user workspace
+    - Offline-first design
+    - Cloud deployable
+
+    ### 🧠 Built With
+    - Streamlit
+    - Python
+    - JSON-based memory
+    - RAG architecture
+    - Modular UI design
+
+    ### 👨‍💻 Author
+    **Hemanth Sai**  
+    B.Tech CSE | Final Year Project  
+    Built with ❤️ and real engineering thinking.
+
+    ---
+    _“Don’t just study harder. Study smarter.”_
+    """)
