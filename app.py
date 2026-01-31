@@ -1,58 +1,86 @@
 import streamlit as st
-from datetime import datetime
 
-from ui.components import header, input_form
-from ui.auth_ui import login_ui
-from ui.upload_ui import upload_ui
-from src.ai_engine import analyze_learning
-from src.memory_engine import add_memory, load_memory
+# =================================================
+# FORCE FIRST PAINT (MOBILE FIX)
+# =================================================
+if "booted" not in st.session_state:
+    st.session_state.booted = True
+    st.markdown("## 🚀 AI Learning Coach is starting…")
+    st.markdown("⏳ Please wait 2–3 seconds")
+    st.stop()
 
-# -------------------------------------------------
-# PAGE CONFIG (MOBILE SAFE)
-# -------------------------------------------------
+# =================================================
+# PAGE CONFIG
+# =================================================
 st.set_page_config(
     page_title="AI Learning Coach",
     layout="centered",
-    initial_sidebar_state="collapsed"  # 👈 mobile fix
+    initial_sidebar_state="collapsed"
 )
 
-# -------------------------------------------------
-# MOBILE LOADER (INSTANT FEEDBACK)
-# -------------------------------------------------
-st.markdown(
-    """
+# =================================================
+# MOBILE DETECTION (SIMPLE + SAFE)
+# =================================================
+is_mobile = st.session_state.get("is_mobile", False)
+ua = st.request.headers.get("user-agent", "").lower()
+if any(x in ua for x in ["iphone", "android", "mobile"]):
+    is_mobile = True
+st.session_state.is_mobile = is_mobile
+
+# =================================================
+# CSS FOR BOTTOM NAV (MOBILE ONLY)
+# =================================================
+if is_mobile:
+    st.markdown("""
     <style>
-    .mobile-loader {
-        height: 6px;
-        background: linear-gradient(90deg, #4f46e5, #22d3ee, #4f46e5);
-        background-size: 200% 100%;
-        animation: move 1.2s linear infinite;
-        border-radius: 10px;
-        margin-bottom: 12px;
+    .bottom-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #0f172a;
+        display: flex;
+        justify-content: space-around;
+        padding: 10px 0;
+        z-index: 9999;
+        border-top: 1px solid #1e293b;
     }
-    @keyframes move {
-        0% {background-position: 0%}
-        100% {background-position: 200%}
+    .bottom-nav button {
+        background: none;
+        border: none;
+        color: #cbd5f5;
+        font-size: 12px;
+    }
+    .bottom-nav button.active {
+        color: #22d3ee;
+        font-weight: bold;
+    }
+    .spacer {
+        height: 70px;
     }
     </style>
-    <div class="mobile-loader"></div>
-    """,
-    unsafe_allow_html=True
-)
+    """, unsafe_allow_html=True)
 
-st.info("🚀 Starting AI Learning Coach...")
+# =================================================
+# NAVIGATION STATE
+# =================================================
+if "page" not in st.session_state:
+    st.session_state.page = "Study"
 
-# -------------------------------------------------
-# SIDEBAR NAVIGATION
-# -------------------------------------------------
-page = st.sidebar.radio(
-    "Navigate",
-    ["Study", "Upload", "Analytics", "Daily", "About"]
-)
+# =================================================
+# DESKTOP NAV (SIDEBAR)
+# =================================================
+if not is_mobile:
+    st.session_state.page = st.sidebar.radio(
+        "Navigate",
+        ["Study", "Upload", "Analytics", "Daily", "About"]
+    )
 
-# -------------------------------------------------
+# =================================================
 # AUTH
-# -------------------------------------------------
+# =================================================
+from ui.auth_ui import login_ui
+
 if "user" not in st.session_state:
     login_ui()
     st.stop()
@@ -60,12 +88,23 @@ if "user" not in st.session_state:
 user = st.session_state["user"]
 user_dir = f"data/users/{user}"
 
-# -------------------------------------------------
-# STUDY PAGE
-# -------------------------------------------------
+# =================================================
+# IMPORTS (AFTER BOOT)
+# =================================================
+from datetime import datetime
+from ui.components import header, input_form
+from ui.upload_ui import upload_ui
+from src.ai_engine import analyze_learning
+from src.memory_engine import add_memory, load_memory
+
+# =================================================
+# PAGE ROUTER
+# =================================================
+page = st.session_state.page
+
+# ---------------- STUDY ----------------
 if page == "Study":
     header()
-
     topic, confusions, time_spent, submitted = input_form()
 
     if submitted:
@@ -84,114 +123,72 @@ if page == "Study":
         st.subheader("📊 Analysis Result")
         st.success(result)
 
-# -------------------------------------------------
-# UPLOAD PAGE
-# -------------------------------------------------
+# ---------------- UPLOAD ----------------
 elif page == "Upload":
     st.subheader("📄 Upload Study Material")
     upload_ui(user_dir)
 
-# -------------------------------------------------
-# ANALYTICS PAGE (LOAD ON DEMAND - MOBILE SAFE)
-# -------------------------------------------------
+# ---------------- ANALYTICS ----------------
 elif page == "Analytics":
     st.subheader("📈 Weekly Analytics")
-    st.caption("Tap button to load (optimized for mobile)")
-
     if st.button("Load analytics"):
-        with st.spinner("Loading analytics..."):
-            import pandas as pd
-            import matplotlib.pyplot as plt
+        import pandas as pd
+        import matplotlib.pyplot as plt
 
-            data = load_memory()
-            data = [d for d in data if d.get("meta", {}).get("user") == user]
+        data = load_memory()
+        data = [d for d in data if d.get("meta", {}).get("user") == user]
 
-            if data:
-                df = pd.DataFrame(data)
+        if data:
+            df = pd.DataFrame(data)
+            df["date"] = pd.to_datetime(df["time"], errors="coerce")
+            df["time_spent"] = df["meta"].apply(
+                lambda x: x.get("time_spent", 0) if isinstance(x, dict) else 0
+            )
 
-                if "time" in df.columns:
-                    df["date"] = pd.to_datetime(df["time"], errors="coerce")
-                else:
-                    df["date"] = datetime.now()
+            weekly = df.resample("W", on="date").sum(numeric_only=True)
 
-                df["time_spent"] = df["meta"].apply(
-                    lambda x: x.get("time_spent", 0) if isinstance(x, dict) else 0
-                )
+            fig, ax = plt.subplots()
+            ax.plot(weekly.index, weekly["time_spent"])
+            ax.set_ylabel("Minutes")
+            st.pyplot(fig)
 
-                weekly = df.resample("W", on="date").sum(numeric_only=True)
-
-                fig, ax = plt.subplots()
-                ax.plot(weekly.index, weekly["time_spent"])
-                ax.set_title("Weekly Study Time")
-                ax.set_ylabel("Minutes")
-                st.pyplot(fig)
-
-                st.subheader("🧩 Insights")
-                most_common = (
-                    df["meta"]
-                    .apply(lambda x: x.get("topic") if isinstance(x, dict) else None)
-                    .value_counts()
-                    .head(3)
-                )
-
-                if not most_common.empty:
-                    st.write("Most studied topics:")
-                    st.write(most_common)
-                else:
-                    st.info("No topics yet.")
-            else:
-                st.info("No data yet. Start studying!")
-
-# -------------------------------------------------
-# DAILY PAGE (OFFLINE DEMO AI)
-# -------------------------------------------------
+# ---------------- DAILY ----------------
 elif page == "Daily":
-    st.subheader("🧠 Daily Coach (Demo Mode)")
-
+    st.subheader("🧠 Daily Coach")
     st.markdown("""
-    ### 🎯 Today’s Smart Plan
-    - Revise yesterday's topic
-    - Practice 5 questions
-    - Read next section
-    - 45–60 min deep focus
-    - Note confusions
-
-    💡 Tip: Consistency beats intensity.
+    - Revise last topic  
+    - Practice 5 questions  
+    - Read next section  
+    - 45–60 min focus  
     """)
+    st.success("Demo plan generated")
 
-    st.success("✅ Generated in demo mode (no AI credits used)")
-
-# -------------------------------------------------
-# ABOUT PAGE (PREMIUM FEEL)
-# -------------------------------------------------
+# ---------------- ABOUT ----------------
 elif page == "About":
     st.markdown("""
     ## 🎓 AI Learning Coach
 
-    A **mobile-first, offline-first intelligent study system** built to help
-    students learn smarter — not harder.
+    A **mobile-first intelligent study OS**.
 
-    ### ✨ What makes it special
-    - Personal workspace
-    - Smart memory
-    - Weekly analytics
-    - PDF upload
-    - Demo AI mode
-    - Cloud safe
-    - Mobile optimized
-
-    ### 🛠 Built with
-    - Streamlit
-    - Python
-    - Clean architecture
-    - Production mindset
-
-    ---
-    **Built with ❤️ by Hemanth**
+    Built with ❤️ by Hemanth  
+    Version: **v1.3**
     """)
 
-# -------------------------------------------------
-# FOOTER
-# -------------------------------------------------
-st.markdown("---")
-st.caption("AI Learning Coach v1.1 • Mobile Optimized Release")
+# =================================================
+# MOBILE BOTTOM NAV
+# =================================================
+if is_mobile:
+    st.markdown('<div class="spacer"></div>', unsafe_allow_html=True)
+    cols = st.columns(5)
+
+    buttons = ["Study", "Upload", "Analytics", "Daily", "About"]
+    icons = ["📘", "📄", "📊", "🧠", "ℹ️"]
+
+    with st.container():
+        st.markdown('<div class="bottom-nav">', unsafe_allow_html=True)
+        for b, icon in zip(buttons, icons):
+            active = "active" if page == b else ""
+            if st.button(f"{icon}\n{b}", key=f"nav-{b}"):
+                st.session_state.page = b
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
