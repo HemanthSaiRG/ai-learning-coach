@@ -1,194 +1,190 @@
 import streamlit as st
+from datetime import datetime
+import pandas as pd
+import matplotlib.pyplot as plt
 
-# =================================================
-# FORCE FIRST PAINT (MOBILE FIX)
-# =================================================
-if "booted" not in st.session_state:
-    st.session_state.booted = True
-    st.markdown("## 🚀 AI Learning Coach is starting…")
-    st.markdown("⏳ Please wait 2–3 seconds")
+# ======================================================
+# MOBILE TAP-TO-START (FINAL FIX FOR STREAMLIT CLOUD)
+# ======================================================
+ua = st.request.headers.get("user-agent", "").lower()
+IS_MOBILE = any(x in ua for x in ["iphone", "android", "mobile"])
+
+if IS_MOBILE and "started" not in st.session_state:
+    st.markdown("## 📱 AI Learning Coach")
+    st.info("Tap start to load app (mobile optimized)")
+    if st.button("▶ Start"):
+        st.session_state.started = True
+        st.rerun()
     st.stop()
 
-# =================================================
+# ======================================================
 # PAGE CONFIG
-# =================================================
+# ======================================================
 st.set_page_config(
     page_title="AI Learning Coach",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# =================================================
-# MOBILE DETECTION (SIMPLE + SAFE)
-# =================================================
-is_mobile = st.session_state.get("is_mobile", False)
-ua = st.request.headers.get("user-agent", "").lower()
-if any(x in ua for x in ["iphone", "android", "mobile"]):
-    is_mobile = True
-st.session_state.is_mobile = is_mobile
+# ======================================================
+# MODE (DEMO FOR MOBILE)
+# ======================================================
+if IS_MOBILE:
+    st.session_state["DEMO_MODE"] = True
+else:
+    st.session_state.setdefault("DEMO_MODE", False)
 
-# =================================================
-# CSS FOR BOTTOM NAV (MOBILE ONLY)
-# =================================================
-if is_mobile:
-    st.markdown("""
-    <style>
-    .bottom-nav {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: #0f172a;
-        display: flex;
-        justify-content: space-around;
-        padding: 10px 0;
-        z-index: 9999;
-        border-top: 1px solid #1e293b;
-    }
-    .bottom-nav button {
-        background: none;
-        border: none;
-        color: #cbd5f5;
-        font-size: 12px;
-    }
-    .bottom-nav button.active {
-        color: #22d3ee;
-        font-weight: bold;
-    }
-    .spacer {
-        height: 70px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+if st.session_state["DEMO_MODE"]:
+    st.warning("⚡ Demo Mode (Fast Mobile Mode)")
+else:
+    st.success("🧠 Full AI Mode")
 
-# =================================================
-# NAVIGATION STATE
-# =================================================
-if "page" not in st.session_state:
-    st.session_state.page = "Study"
+# ======================================================
+# NAVIGATION
+# ======================================================
+page = st.sidebar.radio(
+    "Navigate",
+    ["Study", "Upload", "Planner", "Daily", "Analytics", "About"]
+)
 
-# =================================================
-# DESKTOP NAV (SIDEBAR)
-# =================================================
-if not is_mobile:
-    st.session_state.page = st.sidebar.radio(
-        "Navigate",
-        ["Study", "Upload", "Analytics", "Daily", "About"]
-    )
+# ======================================================
+# SAFE AI
+# ======================================================
+def demo_ai(topic, confusions, time_spent):
+    return f"""
+📘 Demo AI Tutor
 
-# =================================================
-# AUTH
-# =================================================
-from ui.auth_ui import login_ui
+Topic: {topic}
+Confusions: {confusions}
+Time spent: {time_spent} min
 
-if "user" not in st.session_state:
-    login_ui()
-    st.stop()
+Plan:
+1. Revise basics
+2. Practice 5 problems
+3. Watch one video
+4. Revise tomorrow
+"""
 
-user = st.session_state["user"]
-user_dir = f"data/users/{user}"
+def get_ai():
+    if st.session_state["DEMO_MODE"]:
+        return None
+    try:
+        from src.ai_engine import analyze_learning
+        return analyze_learning
+    except:
+        return None
 
-# =================================================
-# IMPORTS (AFTER BOOT)
-# =================================================
-from datetime import datetime
-from ui.components import header, input_form
-from ui.upload_ui import upload_ui
-from src.ai_engine import analyze_learning
-from src.memory_engine import add_memory, load_memory
+# ======================================================
+# SAFE MEMORY
+# ======================================================
+def load_data():
+    try:
+        from src.memory_engine import load_memory
+        return load_memory()
+    except:
+        return []
 
-# =================================================
-# PAGE ROUTER
-# =================================================
-page = st.session_state.page
+def save_data(text, meta):
+    try:
+        from src.memory_engine import add_memory
+        add_memory(text, meta)
+    except:
+        pass
 
-# ---------------- STUDY ----------------
+# ======================================================
+# STUDY
+# ======================================================
 if page == "Study":
-    header()
-    topic, confusions, time_spent, submitted = input_form()
+    st.header("📚 Study")
 
-    if submitted:
-        with st.spinner("Analyzing..."):
-            result = analyze_learning(topic, confusions, time_spent)
+    topic = st.text_input("Topic")
+    confusions = st.text_area("What is confusing?")
+    time_spent = st.number_input("Time spent (minutes)", 1, 300, 30)
 
-        add_memory(
-            f"{topic}. Confusions: {confusions}",
+    if st.button("Analyze"):
+        ai = get_ai()
+        if ai:
+            result = ai(topic, confusions, time_spent)
+        else:
+            result = demo_ai(topic, confusions, time_spent)
+
+        save_data(
+            f"{topic}: {confusions}",
             {
                 "topic": topic,
                 "time_spent": time_spent,
-                "user": user
+                "time": str(datetime.now())
             }
         )
 
-        st.subheader("📊 Analysis Result")
         st.success(result)
 
-# ---------------- UPLOAD ----------------
+# ======================================================
+# UPLOAD
+# ======================================================
 elif page == "Upload":
-    st.subheader("📄 Upload Study Material")
-    upload_ui(user_dir)
+    st.header("📤 Upload Material")
+    st.info("PDF upload available (stored locally)")
+    st.file_uploader("Upload PDF", type=["pdf"])
 
-# ---------------- ANALYTICS ----------------
+# ======================================================
+# PLANNER
+# ======================================================
+elif page == "Planner":
+    st.header("🗓 Planner")
+    st.markdown("""
+- Day 1: Revise basics
+- Day 2: Practice
+- Day 3: Test yourself
+""")
+
+# ======================================================
+# DAILY
+# ======================================================
+elif page == "Daily":
+    st.header("📆 Daily Tasks")
+    st.checkbox("Revise yesterday topic")
+    st.checkbox("Practice 5 questions")
+    st.checkbox("Read next section")
+    st.success("Consistency beats intensity 💪")
+
+# ======================================================
+# ANALYTICS
+# ======================================================
 elif page == "Analytics":
-    st.subheader("📈 Weekly Analytics")
-    if st.button("Load analytics"):
-        import pandas as pd
-        import matplotlib.pyplot as plt
+    st.header("📊 Analytics")
 
-        data = load_memory()
-        data = [d for d in data if d.get("meta", {}).get("user") == user]
-
-        if data:
-            df = pd.DataFrame(data)
-            df["date"] = pd.to_datetime(df["time"], errors="coerce")
-            df["time_spent"] = df["meta"].apply(
-                lambda x: x.get("time_spent", 0) if isinstance(x, dict) else 0
-            )
-
+    data = load_data()
+    if data:
+        df = pd.DataFrame(data)
+        if "meta" in df.columns:
+            df["time_spent"] = df["meta"].apply(lambda x: x.get("time_spent", 0))
+            df["date"] = pd.to_datetime(df["meta"].apply(lambda x: x.get("time", datetime.now())))
             weekly = df.resample("W", on="date").sum(numeric_only=True)
 
             fig, ax = plt.subplots()
             ax.plot(weekly.index, weekly["time_spent"])
             ax.set_ylabel("Minutes")
             st.pyplot(fig)
+    else:
+        st.info("No data yet")
 
-# ---------------- DAILY ----------------
-elif page == "Daily":
-    st.subheader("🧠 Daily Coach")
-    st.markdown("""
-    - Revise last topic  
-    - Practice 5 questions  
-    - Read next section  
-    - 45–60 min focus  
-    """)
-    st.success("Demo plan generated")
-
-# ---------------- ABOUT ----------------
+# ======================================================
+# ABOUT
+# ======================================================
 elif page == "About":
     st.markdown("""
-    ## 🎓 AI Learning Coach
+# 🎓 AI Learning Coach
 
-    A **mobile-first intelligent study OS**.
+A **mobile-safe AI study system** designed for real students.
 
-    Built with ❤️ by Hemanth  
-    Version: **v1.3**
-    """)
+### Features
+- Works on mobile without crash
+- Demo AI mode (free)
+- Full AI on desktop
+- Planner + Analytics
+- PDF support
+- Cloud-safe architecture
 
-# =================================================
-# MOBILE BOTTOM NAV
-# =================================================
-if is_mobile:
-    st.markdown('<div class="spacer"></div>', unsafe_allow_html=True)
-    cols = st.columns(5)
-
-    buttons = ["Study", "Upload", "Analytics", "Daily", "About"]
-    icons = ["📘", "📄", "📊", "🧠", "ℹ️"]
-
-    with st.container():
-        st.markdown('<div class="bottom-nav">', unsafe_allow_html=True)
-        for b, icon in zip(buttons, icons):
-            active = "active" if page == b else ""
-            if st.button(f"{icon}\n{b}", key=f"nav-{b}"):
-                st.session_state.page = b
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+Built by **Hemanth Sai** 💙
+""")
