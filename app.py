@@ -14,23 +14,16 @@ from src.ai_engine import analyze_learning
 from src.memory_engine import add_memory, load_memory
 
 # ---------- PAGE CONFIG ----------
-st.set_page_config(
-    page_title="AI Study OS",
-    page_icon="🎓",
-    layout="wide"
-)
+st.set_page_config(page_title="AI Study OS", page_icon="🎓", layout="wide")
 
 # ---------- AUTH ----------
 if "user" not in st.session_state:
     login_ui()
     st.stop()
 
-# ---------- USER WORKSPACE ----------
-user_dir = f"data/users/{st.session_state['user']}"
-os.makedirs(user_dir, exist_ok=True)
-
 # ---------- SIDEBAR ----------
 st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
+
 page = st.sidebar.radio(
     "Navigate",
     [
@@ -44,16 +37,24 @@ page = st.sidebar.radio(
     ]
 )
 
-# ---------- GLOBAL STYLE ----------
-st.markdown("""
-<style>
-h1, h2, h3 { color: #2E86C1; }
-.block-container { padding-top: 1rem; }
-</style>
-""", unsafe_allow_html=True)
+st.sidebar.divider()
+
+# ✅ DEMO MODE TOGGLE
+demo_mode = st.sidebar.toggle("🧪 Demo Mode (Exam Safe)", value=True)
+st.session_state["DEMO_MODE"] = demo_mode
+
+# ---------- MODE BANNER ----------
+if demo_mode:
+    st.info("🧪 Demo Mode Active — AI responses are simulated (exam safe)")
+else:
+    st.success("🤖 AI Mode Active — Real AI used if credits available")
+
+# ---------- USER WORKSPACE ----------
+user_dir = f"data/users/{st.session_state['user']}"
+os.makedirs(user_dir, exist_ok=True)
 
 # ==========================================================
-# 📘 STUDY PAGE
+# 📘 STUDY
 # ==========================================================
 if page == "📘 Study":
     header()
@@ -64,7 +65,6 @@ if page == "📘 Study":
     if submitted:
         result = analyze_learning(topic, confusions, time_spent, user_dir)
 
-        # Save memory
         add_memory(
             f"{topic}. Confusions: {confusions}",
             {
@@ -74,7 +74,6 @@ if page == "📘 Study":
             }
         )
 
-        # Progress tracking
         progress_file = f"{user_dir}/subjects.json"
         try:
             with open(progress_file, "r") as f:
@@ -92,29 +91,26 @@ if page == "📘 Study":
         with open(progress_file, "w") as f:
             json.dump(subjects, f, indent=2)
 
-        st.subheader("✅ AI Feedback")
+        st.subheader("✅ Tutor Feedback")
         st.success(result)
 
 # ==========================================================
-# 📄 UPLOAD PAGE
+# 📄 UPLOAD
 # ==========================================================
 if page == "📄 Upload":
-    st.markdown("## 📄 Upload Study Material")
     upload_ui(user_dir)
 
 # ==========================================================
-# 🗓 PLANNER PAGE
+# 🗓 PLANNER
 # ==========================================================
 if page == "🗓 Planner":
-    st.markdown("## 🗓 Study Planner")
     planner_ui(user_dir)
 
 # ==========================================================
-# ☀️ DAILY PAGE (NEW INTELLIGENCE)
+# ☀️ DAILY
 # ==========================================================
 if page == "☀️ Daily":
-    st.markdown("## ☀️ Daily Focus")
-
+    st.subheader("☀️ Daily Focus")
     today = datetime.now().strftime("%Y-%m-%d")
     daily_file = f"{user_dir}/daily.json"
 
@@ -124,23 +120,21 @@ if page == "☀️ Daily":
     else:
         daily = {}
 
-    focus = st.text_input("🎯 What will you focus on today?", daily.get(today, ""))
+    focus = st.text_input("What is your main focus today?", daily.get(today, ""))
 
-    if st.button("Save Today’s Focus"):
+    if st.button("Save Focus"):
         daily[today] = focus
         with open(daily_file, "w") as f:
             json.dump(daily, f, indent=2)
         st.success("Saved! Stay consistent 💪")
 
     if daily.get(today):
-        st.info(f"📌 Today’s focus: **{daily[today]}**")
+        st.info(f"📌 Today's focus: **{daily[today]}**")
 
 # ==========================================================
-# 📊 ANALYTICS PAGE
+# 📊 ANALYTICS
 # ==========================================================
 if page == "📊 Analytics":
-    st.markdown("## 📊 Learning Analytics")
-
     data = load_memory()
     data = [d for d in data if d.get("meta", {}).get("user") == st.session_state["user"]]
 
@@ -170,43 +164,30 @@ if page == "📊 Analytics":
         st.info("No data yet.")
 
 # ==========================================================
-# 💾 BACKUP PAGE
+# 💾 BACKUP
 # ==========================================================
 if page == "💾 Backup":
-    st.markdown("## 💾 Export & Backup")
     export_ui(user_dir)
 
 # ==========================================================
-# ℹ️ ABOUT PAGE (PREMIUM)
+# ℹ️ ABOUT
 # ==========================================================
 if page == "ℹ️ About":
     st.markdown("""
-    ## 🎓 AI Study OS
+    ## 🎓 AI Study OS (v1.0)
 
-    **AI Study OS** is an offline-first intelligent learning system that helps students
-    study smarter using AI, memory, and analytics.
+    A product-grade learning system that helps students study smarter using
+    AI, memory, analytics, and planning.
 
-    ### 🚀 Features
-    - AI Tutor (PDF + RAG based)
-    - Automatic progress tracking
-    - Study planner & daily focus
-    - Learning analytics
+    **Features**
+    - AI Tutor (RAG + fallback)
+    - Demo-safe mode
+    - Planner & daily focus
+    - Analytics
     - Multi-user workspace
-    - Offline-first design
+    - Offline-first
     - Cloud deployable
 
-    ### 🧠 Built With
-    - Streamlit
-    - Python
-    - JSON-based memory
-    - RAG architecture
-    - Modular UI design
-
-    ### 👨‍💻 Author
-    **Hemanth Sai**  
-    B.Tech CSE | Final Year Project  
-    Built with ❤️ and real engineering thinking.
-
-    ---
-    _“Don’t just study harder. Study smarter.”_
+    **Built by Hemanth Sai**  
+    B.Tech CSE Final Year Project
     """)
