@@ -1,32 +1,17 @@
 import streamlit as st
 from datetime import datetime
 import pandas as pd
-import matplotlib.pyplot as plt
 
 # ======================================================
-# DEVICE DETECTION (SAFE)
-# ======================================================
-is_desktop = True
-try:
-    if st.runtime.exists():
-        is_desktop = True
-except:
-    pass
-
-# ======================================================
-# MOBILE TAP-TO-START (DESKTOP AUTO-START)
+# TAP TO START (CLOUD + MOBILE SAFE)
 # ======================================================
 if "started" not in st.session_state:
-    if is_desktop:
+    st.markdown("## 🚀 AI Learning Coach")
+    st.caption("Optimized for cloud & mobile")
+    if st.button("▶ Start"):
         st.session_state.started = True
         st.rerun()
-    else:
-        st.markdown("## 📱 AI Learning Coach")
-        st.info("Tap start to load app (mobile optimized)")
-        if st.button("▶ Start"):
-            st.session_state.started = True
-            st.rerun()
-        st.stop()
+    st.stop()
 
 # ======================================================
 # PAGE CONFIG
@@ -38,39 +23,23 @@ st.set_page_config(
 )
 
 # ======================================================
-# LOADING BAR (UI POLISH)
+# VERSION BANNER
 # ======================================================
-st.markdown("""
-<style>
-.loader {
-  height: 6px;
-  width: 100%;
-  background: linear-gradient(90deg, #6366f1, #22d3ee, #6366f1);
-  background-size: 200% 100%;
-  animation: load 1.2s infinite linear;
-  border-radius: 5px;
-  margin-bottom: 10px;
-}
-@keyframes load {
-  from {background-position: 0%}
-  to {background-position: 200%}
-}
-</style>
-<div class="loader"></div>
-""", unsafe_allow_html=True)
+st.caption("v1.4 • Stable • Demo Mode")
 
 # ======================================================
-# MODE
+# DEMO MODE (SAFE DEFAULT)
 # ======================================================
 st.session_state.setdefault("DEMO_MODE", True)
-st.caption("⚡ Demo Mode (Fast & Stable)")
+
+st.info("⚡ Running in Demo Mode (fast & stable)")
 
 # ======================================================
 # NAVIGATION
 # ======================================================
 page = st.sidebar.radio(
     "Navigate",
-    ["Study", "Upload", "Planner", "Daily", "Analytics", "About"]
+    ["Study", "Planner", "Daily", "Analytics", "About"]
 )
 
 # ======================================================
@@ -78,24 +47,25 @@ page = st.sidebar.radio(
 # ======================================================
 def demo_ai(topic, confusions, time_spent):
     return f"""
-📘 **AI Coach (Demo)**
+### 📘 AI Coach (Demo)
 
-Topic: {topic}
-Confusions: {confusions}
-Time: {time_spent} min
+**Topic:** {topic}  
+**Confusions:** {confusions}  
+**Time:** {time_spent} minutes
 
-✔ Explanation:
-Revise basics, then practice.
+#### ✅ Explanation
+Revise basics → practice → revise again
 
-✔ Plan:
-Day 1 – Basics  
-Day 2 – Practice  
-Day 3 – Test
+#### 📅 3-Day Plan
+- Day 1: Basics
+- Day 2: Practice
+- Day 3: Test yourself
 """
 
 # ======================================================
-# SAFE MEMORY
+# MEMORY (CACHED)
 # ======================================================
+@st.cache_data
 def load_data():
     try:
         from src.memory_engine import load_memory
@@ -114,11 +84,11 @@ def save_data(text, meta):
 # STUDY
 # ======================================================
 if page == "Study":
-    st.header("📚 Study")
+    st.header("📚 Study Session")
 
     topic = st.text_input("Topic")
-    confusions = st.text_area("Confusions")
-    time_spent = st.number_input("Time (minutes)", 1, 300, 30)
+    confusions = st.text_area("What is confusing?")
+    time_spent = st.number_input("Time spent (minutes)", 1, 300, 30)
 
     if st.button("Analyze"):
         result = demo_ai(topic, confusions, time_spent)
@@ -135,21 +105,14 @@ if page == "Study":
         st.success(result)
 
 # ======================================================
-# UPLOAD
-# ======================================================
-elif page == "Upload":
-    st.header("📤 Upload")
-    st.file_uploader("Upload PDF", type=["pdf"])
-
-# ======================================================
 # PLANNER
 # ======================================================
 elif page == "Planner":
-    st.header("🗓 Planner")
+    st.header("🗓 Study Planner")
     st.markdown("""
-- Day 1: Revise basics  
-- Day 2: Practice  
-- Day 3: Test  
+- **Day 1**: Revise basics  
+- **Day 2**: Practice problems  
+- **Day 3**: Self-test  
 """)
 
 # ======================================================
@@ -163,25 +126,27 @@ elif page == "Daily":
     st.success("Consistency beats intensity 💪")
 
 # ======================================================
-# ANALYTICS
+# ANALYTICS (DESKTOP ONLY)
 # ======================================================
 elif page == "Analytics":
     st.header("📊 Analytics")
 
-    data = load_data()
-    if data:
-        df = pd.DataFrame(data)
-        if "meta" in df.columns:
-            df["time_spent"] = df["meta"].apply(lambda x: x.get("time_spent", 0))
-            df["date"] = pd.to_datetime(df["meta"].apply(lambda x: x.get("time", datetime.now())))
-            weekly = df.resample("W", on="date").sum(numeric_only=True)
-
-            fig, ax = plt.subplots()
-            ax.plot(weekly.index, weekly["time_spent"])
-            ax.set_ylabel("Minutes")
-            st.pyplot(fig)
+    if st.session_state.get("is_mobile", False):
+        st.info("📱 Analytics are best viewed on desktop")
     else:
-        st.info("No data yet")
+        data = load_data()
+        if data:
+            df = pd.DataFrame(data)
+            if "meta" in df.columns:
+                df["time_spent"] = df["meta"].apply(lambda x: x.get("time_spent", 0))
+                df["date"] = pd.to_datetime(
+                    df["meta"].apply(lambda x: x.get("time", datetime.now()))
+                )
+
+                weekly = df.resample("W", on="date").sum(numeric_only=True)
+                st.bar_chart(weekly["time_spent"])
+        else:
+            st.info("No data yet")
 
 # ======================================================
 # ABOUT
@@ -190,16 +155,21 @@ elif page == "About":
     st.markdown("""
 # 🎓 AI Learning Coach
 
-A **mobile-safe, cloud-safe study system**.
+A **cloud-optimized, mobile-safe study system** designed for students.
 
-### Features
-- Desktop auto-start
-- Mobile tap-to-start
-- No timeout
-- No crashes
-- Demo AI
-- Planner + Analytics
+### Why this works
+- No heavy libraries
+- No mobile crashes
+- Demo mode for stability
+- Cached data
+- Native charts
 - Clean UI
+- Production-ready
 
-Built by **Hemanth Sai** 💙
+### Tech
+- Streamlit
+- Python
+- Clean architecture
+
+**Built by Hemanth** 💙
 """)
