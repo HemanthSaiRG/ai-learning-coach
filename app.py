@@ -8,6 +8,7 @@ import os
 from ui.components import header, input_form
 from ui.auth_ui import login_ui
 from ui.upload_ui import upload_ui
+from ui.planner_ui import planner_ui          # ✅ NEW IMPORT
 from src.ai_engine import analyze_learning
 from src.memory_engine import add_memory, load_memory
 
@@ -25,13 +26,16 @@ os.makedirs(user_dir, exist_ok=True)
 # ---------- PDF UPLOAD ----------
 upload_ui(user_dir)
 
+# ---------- STUDY PLANNER ----------
+planner_ui(user_dir)                           # ✅ NEW CALL
+
 # ---------- UI ----------
 header()
 
 topic, confusions, time_spent, submitted = input_form()
 
 if submitted:
-    # ✅ UPDATED AI CALL (user-specific)
+    # ✅ UPDATED AI CALL
     result = analyze_learning(topic, confusions, time_spent, user_dir)
 
     # ---------- SAVE MEMORY ----------
@@ -72,7 +76,7 @@ st.subheader("📈 Weekly Analytics")
 
 data = load_memory()
 
-# ✅ filter data per user
+# filter per user
 data = [d for d in data if d.get("meta", {}).get("user") == st.session_state["user"]]
 
 if data:
