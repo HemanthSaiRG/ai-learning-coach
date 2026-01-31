@@ -8,12 +8,36 @@ from src.ai_engine import analyze_learning
 from src.memory_engine import add_memory, load_memory
 
 # -------------------------------------------------
-# PAGE CONFIG
+# PAGE CONFIG (MOBILE SAFE)
 # -------------------------------------------------
 st.set_page_config(
     page_title="AI Learning Coach",
     layout="centered",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"  # 👈 mobile fix
+)
+
+# -------------------------------------------------
+# MOBILE LOADER (INSTANT FEEDBACK)
+# -------------------------------------------------
+st.markdown(
+    """
+    <style>
+    .mobile-loader {
+        height: 6px;
+        background: linear-gradient(90deg, #4f46e5, #22d3ee, #4f46e5);
+        background-size: 200% 100%;
+        animation: move 1.2s linear infinite;
+        border-radius: 10px;
+        margin-bottom: 12px;
+    }
+    @keyframes move {
+        0% {background-position: 0%}
+        100% {background-position: 200%}
+    }
+    </style>
+    <div class="mobile-loader"></div>
+    """,
+    unsafe_allow_html=True
 )
 
 st.info("🚀 Starting AI Learning Coach...")
@@ -68,99 +92,99 @@ elif page == "Upload":
     upload_ui(user_dir)
 
 # -------------------------------------------------
-# ANALYTICS PAGE (LAZY IMPORTS = NO FREEZE)
+# ANALYTICS PAGE (LOAD ON DEMAND - MOBILE SAFE)
 # -------------------------------------------------
 elif page == "Analytics":
     st.subheader("📈 Weekly Analytics")
+    st.caption("Tap button to load (optimized for mobile)")
 
-    with st.spinner("Loading analytics..."):
-        import pandas as pd
-        import matplotlib.pyplot as plt
+    if st.button("Load analytics"):
+        with st.spinner("Loading analytics..."):
+            import pandas as pd
+            import matplotlib.pyplot as plt
 
-        data = load_memory()
-        data = [d for d in data if d.get("meta", {}).get("user") == user]
+            data = load_memory()
+            data = [d for d in data if d.get("meta", {}).get("user") == user]
 
-        if data:
-            df = pd.DataFrame(data)
+            if data:
+                df = pd.DataFrame(data)
 
-            if "time" in df.columns:
-                df["date"] = pd.to_datetime(df["time"], errors="coerce")
+                if "time" in df.columns:
+                    df["date"] = pd.to_datetime(df["time"], errors="coerce")
+                else:
+                    df["date"] = datetime.now()
+
+                df["time_spent"] = df["meta"].apply(
+                    lambda x: x.get("time_spent", 0) if isinstance(x, dict) else 0
+                )
+
+                weekly = df.resample("W", on="date").sum(numeric_only=True)
+
+                fig, ax = plt.subplots()
+                ax.plot(weekly.index, weekly["time_spent"])
+                ax.set_title("Weekly Study Time")
+                ax.set_ylabel("Minutes")
+                st.pyplot(fig)
+
+                st.subheader("🧩 Insights")
+                most_common = (
+                    df["meta"]
+                    .apply(lambda x: x.get("topic") if isinstance(x, dict) else None)
+                    .value_counts()
+                    .head(3)
+                )
+
+                if not most_common.empty:
+                    st.write("Most studied topics:")
+                    st.write(most_common)
+                else:
+                    st.info("No topics yet.")
             else:
-                df["date"] = datetime.now()
-
-            df["time_spent"] = df["meta"].apply(
-                lambda x: x.get("time_spent", 0) if isinstance(x, dict) else 0
-            )
-
-            weekly = df.resample("W", on="date").sum(numeric_only=True)
-
-            fig, ax = plt.subplots()
-            ax.plot(weekly.index, weekly["time_spent"])
-            ax.set_title("Weekly Study Time")
-            ax.set_ylabel("Minutes")
-            st.pyplot(fig)
-
-            st.subheader("🧩 Insights")
-            most_common = (
-                df["meta"]
-                .apply(lambda x: x.get("topic") if isinstance(x, dict) else None)
-                .value_counts()
-                .head(3)
-            )
-
-            if not most_common.empty:
-                st.write("Most studied topics:")
-                st.write(most_common)
-            else:
-                st.info("No topics yet.")
-        else:
-            st.info("No data yet. Start studying!")
+                st.info("No data yet. Start studying!")
 
 # -------------------------------------------------
-# DAILY PAGE (DEMO LOGIC)
+# DAILY PAGE (OFFLINE DEMO AI)
 # -------------------------------------------------
 elif page == "Daily":
-    st.subheader("🧪 Daily Coach (Demo Mode)")
+    st.subheader("🧠 Daily Coach (Demo Mode)")
 
     st.markdown("""
-    **Today’s Focus**
-    - Revise last topic
+    ### 🎯 Today’s Smart Plan
+    - Revise yesterday's topic
     - Practice 5 questions
     - Read next section
     - 45–60 min deep focus
+    - Note confusions
+
+    💡 Tip: Consistency beats intensity.
     """)
 
-    st.success("✅ Demo plan generated (offline mode)")
+    st.success("✅ Generated in demo mode (no AI credits used)")
 
 # -------------------------------------------------
 # ABOUT PAGE (PREMIUM FEEL)
 # -------------------------------------------------
 elif page == "About":
     st.markdown("""
-    ## 🎓 AI Study OS
+    ## 🎓 AI Learning Coach
 
-    An **offline-first intelligent learning system** that helps students:
+    A **mobile-first, offline-first intelligent study system** built to help
+    students learn smarter — not harder.
 
-    - Study smarter
-    - Track progress
-    - Upload material
-    - Get AI guidance
-    - Analyze performance
-
-    ### ✨ Features
+    ### ✨ What makes it special
     - Personal workspace
     - Smart memory
     - Weekly analytics
-    - Upload PDFs
-    - Demo AI (no billing needed)
+    - PDF upload
+    - Demo AI mode
     - Cloud safe
-    - Production ready
+    - Mobile optimized
 
-    ### 🚀 Built With
+    ### 🛠 Built with
     - Streamlit
     - Python
-    - AI logic
     - Clean architecture
+    - Production mindset
 
     ---
     **Built with ❤️ by Hemanth**
@@ -170,4 +194,4 @@ elif page == "About":
 # FOOTER
 # -------------------------------------------------
 st.markdown("---")
-st.caption("AI Learning Coach v1.0 • Stable Release")
+st.caption("AI Learning Coach v1.1 • Mobile Optimized Release")
