@@ -4,7 +4,13 @@ import os
 from datetime import date
 
 # =====================================================
-# BASIC CONFIG
+# SESSION NAVIGATION (AUTO SWITCH)
+# =====================================================
+if "page" not in st.session_state:
+    st.session_state.page = "Today"
+
+# =====================================================
+# CONFIG
 # =====================================================
 DATA_DIR = "data"
 DATA_FILE = os.path.join(DATA_DIR, "progress.json")
@@ -23,7 +29,7 @@ PRACTICE = {
 }
 
 # =====================================================
-# SAFE STORAGE
+# STORAGE (SAFE)
 # =====================================================
 def load_progress():
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -62,7 +68,7 @@ if progress.get("last_date") != today:
     save_progress(progress)
 
 # =====================================================
-# CURRENT TOPIC (SAFE)
+# SAFE CURRENT TOPIC
 # =====================================================
 if progress["current_index"] >= len(SYLLABUS):
     current_topic = "Revision"
@@ -70,7 +76,7 @@ else:
     current_topic = SYLLABUS[progress["current_index"]]
 
 # =====================================================
-# LOCAL STUDY GUIDE
+# STUDY GUIDE
 # =====================================================
 def study_guide(topic, minutes):
     return f"""
@@ -87,14 +93,16 @@ def study_guide(topic, minutes):
 # =====================================================
 # UI
 # =====================================================
-st.set_page_config(page_title="AI Learning Coach", layout="centered")
+st.set_page_config("AI Learning Coach", layout="centered")
 st.title("🎓 AI Learning Coach")
-st.caption("v1.0 • Stable • Offline-first")
+st.caption("v1.0 • Guided • Offline-first")
 
 page = st.sidebar.radio(
     "Navigate",
-    ["Today", "Study", "Practice", "History", "About"]
+    ["Today", "Study", "Practice", "History", "About"],
+    index=["Today", "Study", "Practice", "History", "About"].index(st.session_state.page)
 )
+st.session_state.page = page
 
 # =====================================================
 # TODAY
@@ -104,12 +112,7 @@ if page == "Today":
 
     if progress["today_done"]:
         st.success("You’re done for today. See you tomorrow 🌙")
-
-        if current_topic != "Revision":
-            st.write(f"Next topic: **{current_topic}**")
-        else:
-            st.info("You finished all topics 🎉 Start revision.")
-
+        st.write(f"Next topic: **{current_topic}**")
     else:
         st.markdown(f"""
 ### 🎯 Today’s focus
@@ -118,15 +121,17 @@ if page == "Today":
 ⏱ 30 minutes is enough.
 """)
 
-        st.info("Go to **Study** tab in sidebar to begin.")
+        if st.button("Start study"):
+            st.session_state.page = "Study"
+            st.rerun()
 
 # =====================================================
 # STUDY
 # =====================================================
 elif page == "Study":
     st.header("📘 Study")
-
     st.write(f"Topic: **{current_topic}**")
+
     minutes = st.slider("Time spent (minutes)", 10, 60, 30)
 
     if st.button("Show study guide"):
@@ -135,7 +140,8 @@ elif page == "Study":
         save_progress(progress)
 
     if st.button("Finish study"):
-        st.success("Study done. Now go to **Practice**")
+        st.session_state.page = "Practice"
+        st.rerun()
 
 # =====================================================
 # PRACTICE
@@ -147,6 +153,12 @@ elif page == "Practice":
 
     if not questions:
         st.info("Revision day – no practice today.")
+        if st.button("Finish"):
+            progress["today_done"] = True
+            save_progress(progress)
+            st.session_state.page = "Today"
+            st.rerun()
+
     else:
         completed = []
         for q in questions:
@@ -161,18 +173,17 @@ elif page == "Practice":
                 "topic": current_topic,
                 "minutes": progress.get("study_minutes", 0)
             })
-
             progress["current_index"] += 1
             save_progress(progress)
 
-            st.info("You’re done for today. See you tomorrow 🌱")
+            st.session_state.page = "Today"
+            st.rerun()
 
 # =====================================================
 # HISTORY
 # =====================================================
 elif page == "History":
     st.header("📚 History")
-
     if not progress["history"]:
         st.info("No history yet")
     else:
@@ -188,10 +199,11 @@ elif page == "About":
 
 A simple daily study guide for students who feel stuck.
 
+### Why this works
 - tells you what to study
-- removes decision fatigue
+- removes overthinking
 - gives closure
-- remembers progress
+- builds consistency
 - works offline
 - works on mobile
 - never crashes
