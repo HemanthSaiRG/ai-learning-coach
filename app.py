@@ -1,175 +1,152 @@
 import streamlit as st
-from datetime import datetime
-import pandas as pd
+import json
+from datetime import date
 
-# ======================================================
-# TAP TO START (CLOUD + MOBILE SAFE)
-# ======================================================
-if "started" not in st.session_state:
-    st.markdown("## 🚀 AI Learning Coach")
-    st.caption("Optimized for cloud & mobile")
-    if st.button("▶ Start"):
-        st.session_state.started = True
-        st.rerun()
-    st.stop()
+# =====================================================
+# CONFIG
+# =====================================================
+DATA_FILE = "data/progress.json"
 
-# ======================================================
-# PAGE CONFIG
-# ======================================================
-st.set_page_config(
-    page_title="AI Learning Coach",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
+SYLLABUS = [
+    "Arrays", "Strings", "Recursion", "Sorting", "Searching", "Linked List"
+]
 
-# ======================================================
-# VERSION BANNER
-# ======================================================
-st.caption("v1.4 • Stable • Demo Mode")
+PRACTICE = {
+    "Arrays": ["Reverse array", "Find max element", "Two sum"],
+    "Strings": ["Reverse string", "Check palindrome", "Char frequency"],
+    "Recursion": ["Factorial", "Fibonacci", "Sum of digits"]
+}
 
-# ======================================================
-# DEMO MODE (SAFE DEFAULT)
-# ======================================================
-st.session_state.setdefault("DEMO_MODE", True)
-
-st.info("⚡ Running in Demo Mode (fast & stable)")
-
-# ======================================================
-# NAVIGATION
-# ======================================================
-page = st.sidebar.radio(
-    "Navigate",
-    ["Study", "Planner", "Daily", "Analytics", "About"]
-)
-
-# ======================================================
-# DEMO AI
-# ======================================================
-def demo_ai(topic, confusions, time_spent):
-    return f"""
-### 📘 AI Coach (Demo)
-
-**Topic:** {topic}  
-**Confusions:** {confusions}  
-**Time:** {time_spent} minutes
-
-#### ✅ Explanation
-Revise basics → practice → revise again
-
-#### 📅 3-Day Plan
-- Day 1: Basics
-- Day 2: Practice
-- Day 3: Test yourself
-"""
-
-# ======================================================
-# MEMORY (CACHED)
-# ======================================================
-@st.cache_data
-def load_data():
+# =====================================================
+# STORAGE (SAFE)
+# =====================================================
+def load_progress():
     try:
-        from src.memory_engine import load_memory
-        return load_memory()
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
     except:
-        return []
+        return {
+            "history": [],
+            "today_done": False,
+            "current_index": 0,
+            "streak": 0
+        }
 
-def save_data(text, meta):
-    try:
-        from src.memory_engine import add_memory
-        add_memory(text, meta)
-    except:
-        pass
+def save_progress(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
-# ======================================================
-# STUDY
-# ======================================================
-if page == "Study":
-    st.header("📚 Study Session")
+progress = load_progress()
 
-    topic = st.text_input("Topic")
-    confusions = st.text_area("What is confusing?")
-    time_spent = st.number_input("Time spent (minutes)", 1, 300, 30)
+# reset daily
+if progress.get("last_date") != str(date.today()):
+    progress["today_done"] = False
+    progress["last_date"] = str(date.today())
+    save_progress(progress)
 
-    if st.button("Analyze"):
-        result = demo_ai(topic, confusions, time_spent)
+# =====================================================
+# UI
+# =====================================================
+st.set_page_config("AI Learning Coach", layout="centered")
+st.caption("AI Learning Coach • v1.0 • Stable")
 
-        save_data(
-            f"{topic}: {confusions}",
-            {
-                "topic": topic,
-                "time_spent": time_spent,
-                "time": str(datetime.now())
-            }
-        )
+page = st.sidebar.radio("Navigate", [
+    "Today", "Study", "Practice", "History", "About"
+])
 
-        st.success(result)
+current_topic = SYLLABUS[progress["current_index"]]
 
-# ======================================================
-# PLANNER
-# ======================================================
-elif page == "Planner":
-    st.header("🗓 Study Planner")
-    st.markdown("""
-- **Day 1**: Revise basics  
-- **Day 2**: Practice problems  
-- **Day 3**: Self-test  
-""")
+# =====================================================
+# TODAY PAGE
+# =====================================================
+if page == "Today":
+    st.header("🌱 Today")
 
-# ======================================================
-# DAILY
-# ======================================================
-elif page == "Daily":
-    st.header("📆 Daily Tasks")
-    st.checkbox("Revise yesterday topic")
-    st.checkbox("Practice 5 questions")
-    st.checkbox("Read next section")
-    st.success("Consistency beats intensity 💪")
-
-# ======================================================
-# ANALYTICS (DESKTOP ONLY)
-# ======================================================
-elif page == "Analytics":
-    st.header("📊 Analytics")
-
-    if st.session_state.get("is_mobile", False):
-        st.info("📱 Analytics are best viewed on desktop")
+    if progress["today_done"]:
+        st.success("You’re done for today. See you tomorrow 🌙")
+        st.write(f"Next topic: **{current_topic}**")
     else:
-        data = load_data()
-        if data:
-            df = pd.DataFrame(data)
-            if "meta" in df.columns:
-                df["time_spent"] = df["meta"].apply(lambda x: x.get("time_spent", 0))
-                df["date"] = pd.to_datetime(
-                    df["meta"].apply(lambda x: x.get("time", datetime.now()))
-                )
+        st.markdown(f"""
+### 🎯 Today’s focus
+**{current_topic}**
 
-                weekly = df.resample("W", on="date").sum(numeric_only=True)
-                st.bar_chart(weekly["time_spent"])
-        else:
-            st.info("No data yet")
+⏱ 30 minutes is enough.
+""")
+        if st.button("Start study"):
+            st.session_state.page = "Study"
+            st.experimental_rerun()
 
-# ======================================================
-# ABOUT
-# ======================================================
+# =====================================================
+# STUDY PAGE
+# =====================================================
+elif page == "Study":
+    st.header("📘 Study")
+
+    st.write(f"Topic: **{current_topic}**")
+    minutes = st.slider("Time spent", 10, 60, 30)
+
+    if st.button("Finish study"):
+        progress["study_minutes"] = minutes
+        save_progress(progress)
+        st.success("Study done. Now practice 👇")
+
+# =====================================================
+# PRACTICE PAGE
+# =====================================================
+elif page == "Practice":
+    st.header("🧩 Practice")
+
+    questions = PRACTICE.get(current_topic, [])
+
+    completed = []
+    for q in questions:
+        completed.append(st.checkbox(q))
+
+    if questions and all(completed):
+        st.success("Practice complete 🎉")
+
+        # mark day complete
+        progress["today_done"] = True
+        progress["streak"] += 1
+
+        progress["history"].append({
+            "date": str(date.today()),
+            "topic": current_topic,
+            "minutes": progress.get("study_minutes", 0)
+        })
+
+        progress["current_index"] += 1
+        save_progress(progress)
+
+        st.info("You’re done for today. See you tomorrow 🌱")
+
+# =====================================================
+# HISTORY PAGE
+# =====================================================
+elif page == "History":
+    st.header("📚 History")
+
+    if not progress["history"]:
+        st.info("No history yet")
+    else:
+        for h in reversed(progress["history"]):
+            st.write(f"- {h['date']} • {h['topic']} • {h['minutes']} min")
+
+# =====================================================
+# ABOUT PAGE
+# =====================================================
 elif page == "About":
     st.markdown("""
 # 🎓 AI Learning Coach
 
-A **cloud-optimized, mobile-safe study system** designed for students.
+A **simple daily study guide for students who feel stuck**.
 
-### Why this works
-- No heavy libraries
-- No mobile crashes
-- Demo mode for stability
-- Cached data
-- Native charts
-- Clean UI
-- Production-ready
+This app:
+- removes decision fatigue
+- guides you one step at a time
+- remembers your progress
+- gives closure
+- helps you come back tomorrow
 
-### Tech
-- Streamlit
-- Python
-- Clean architecture
-
-**Built by Hemanth** 💙
+Built with ❤️ by Hemanth.
 """)
