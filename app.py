@@ -14,10 +14,7 @@ DATA_FILE = DATA_DIR / "study_log.json"
 def load_data():
     if DATA_FILE.exists():
         return json.loads(DATA_FILE.read_text())
-    return {
-        "current_phase": None,
-        "history": []
-    }
+    return {"current_phase": None, "history": []}
 
 def save_data(data):
     DATA_FILE.write_text(json.dumps(data, indent=2))
@@ -28,16 +25,11 @@ data = load_data()
 st.markdown("## 📘 Daily Study OS")
 st.caption("A simple daily guide for students who feel stuck")
 
-st.divider()
-
 # ---------------- PHASE SETUP ----------------
 if not data["current_phase"]:
     st.markdown("### 🎯 Set your current learning phase")
-    phase = st.text_input(
-        "Example: Placement Prep, Exam Revision, Learning Something New"
-    )
-
-    if st.button("Start Phase"):
+    phase = st.text_input("Example: DSA Preparation, Exam Revision, Learning Python")
+    if st.button("Start"):
         if phase.strip():
             data["current_phase"] = phase.strip()
             save_data(data)
@@ -47,45 +39,31 @@ if not data["current_phase"]:
 # ---------------- PHASE BAR ----------------
 col1, col2 = st.columns([3,1])
 col1.markdown(f"**Current Phase:** {data['current_phase']}")
-if col2.button("Change"):
+if col2.button("Change Phase"):
     data["current_phase"] = None
     save_data(data)
     st.rerun()
 
 st.divider()
 
-# ---------------- STREAK ----------------
-unique_days = {h["date"] for h in data["history"]}
-st.markdown(f"🔥 **Streak:** {len(unique_days)} days")
-
-st.divider()
-
-# ---------------- TODAY ----------------
-today_done = any(h["date"] == str(date.today()) for h in data["history"])
-
+# ---------------- TODAY STUDY ----------------
 st.markdown("### 📌 Today's Focus")
+topic = st.text_input("What are you studying today?")
 
-if not today_done:
-    topic = st.text_input("What are you studying today?")
-
-    if st.button("Mark as Done"):
-        if topic.strip():
-            data["history"].append({
-                "date": str(date.today()),
-                "topic": topic.strip(),
-                "status": "done"
-            })
-            save_data(data)
-            st.success("You’re done for today 🌱")
-            st.info("Rest well. Come back tomorrow for the next small step.")
-            st.rerun()
-else:
-    st.success("✅ You already completed today’s study.")
-    st.info("See you tomorrow 🌱")
+if st.button("Mark as Done"):
+    if topic.strip():
+        data["history"].append({
+            "date": str(date.today()),
+            "topic": topic.strip(),
+            "status": "done"
+        })
+        save_data(data)
+        st.success("You're done for today 🌱 See you tomorrow")
+        st.rerun()
 
 # ---------------- HISTORY ----------------
 st.divider()
-st.markdown("### 📅 Recent History")
+st.markdown("### 📅 Study History")
 
 if data["history"]:
     for item in reversed(data["history"][-7:]):
@@ -93,31 +71,19 @@ if data["history"]:
 else:
     st.info("No history yet. Start today.")
 
-# ---------------- NEXT PREVIEW ----------------
+# ---------------- NEXT STEP PREVIEW ----------------
 if data["history"]:
     last_topic = data["history"][-1]["topic"]
     st.divider()
     st.markdown("### 🔮 Tomorrow")
-    st.write(f"Continue from **{last_topic}** or choose something new.")
-
-# ---------------- EXPORT ----------------
-st.divider()
-st.markdown("### ⬇️ Backup Your Data")
-
-st.download_button(
-    "Download Study History",
-    json.dumps(data, indent=2),
-    "study_history.json"
-)
+    st.write(f"Continue from **{last_topic}** or pick a new topic.")
 
 # ---------------- ABOUT ----------------
-with st.expander("ℹ️ About Daily Study OS"):
+with st.expander("ℹ️ About this app"):
     st.markdown("""
-**Daily Study OS** is built for real students who feel stuck.
-
-It helps you:
-- focus on just today
-- finish one thing
+**Daily Study OS** helps you:
+- decide what to study today
+- finish it
 - feel progress
 - come back tomorrow
 
@@ -125,5 +91,5 @@ No syllabus.
 No pressure.  
 No limits.  
 
-Built with ❤️ for consistency, not perfection.
+Built for real students who feel stuck.
 """)
