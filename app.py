@@ -2,12 +2,12 @@ import streamlit as st
 import json
 import os
 from datetime import date
-import openai
 
 # =====================================================
 # CONFIG
 # =====================================================
-DATA_FILE = "data/progress.json"
+DATA_DIR = "data"
+DATA_FILE = os.path.join(DATA_DIR, "progress.json")
 
 SYLLABUS = [
     "Arrays", "Strings", "Recursion", "Sorting", "Searching", "Linked List"
@@ -23,9 +23,11 @@ PRACTICE = {
 }
 
 # =====================================================
-# SAFE STORAGE
+# STORAGE (SAFE, CLOUD SAFE)
 # =====================================================
 def load_progress():
+    os.makedirs(DATA_DIR, exist_ok=True)
+
     if not os.path.exists(DATA_FILE):
         return {
             "history": [],
@@ -34,74 +36,70 @@ def load_progress():
             "streak": 0,
             "last_date": ""
         }
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
+
+    try:
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {
+            "history": [],
+            "current_index": 0,
+            "today_done": False,
+            "streak": 0,
+            "last_date": ""
+        }
 
 def save_progress(data):
-    os.makedirs("data", exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
 progress = load_progress()
 
-# daily reset
-if progress["last_date"] != str(date.today()):
+# =====================================================
+# DAILY RESET (SAFE)
+# =====================================================
+today = str(date.today())
+if progress.get("last_date") != today:
     progress["today_done"] = False
-    progress["last_date"] = str(date.today())
+    progress["last_date"] = today
     save_progress(progress)
 
 # =====================================================
-# HYBRID AI ENGINE
+# SAFE CURRENT TOPIC
 # =====================================================
-OPENAI_AVAILABLE = bool(os.getenv("OPENAI_API_KEY"))
+if progress["current_index"] >= len(SYLLABUS):
+    current_topic = "Revision"
+else:
+    current_topic = SYLLABUS[progress["current_index"]]
 
-def local_ai(topic, minutes):
+# =====================================================
+# LOCAL STUDY GUIDE
+# =====================================================
+def study_guide(topic, minutes):
     return f"""
-### 📘 Study Guide (Local AI)
+### 📘 Study Guide
 
 **Topic:** {topic}
 
-1. Revise basic definition
-2. Understand examples
+1. Read definition
+2. Understand 2 examples
 3. Write code by hand
-4. Solve practice questions
+4. Solve practice
 
 ⏱ {minutes} minutes is enough.
-
-You are on the right track.
 """
-
-def real_ai(topic, minutes):
-    try:
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        prompt = f"""
-Explain {topic} simply for a student.
-Suggest what to do in {minutes} minutes.
-"""
-        r = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return r.choices[0].message.content
-    except:
-        return local_ai(topic, minutes)
-
-def analyze(topic, minutes):
-    if OPENAI_AVAILABLE:
-        return real_ai(topic, minutes)
-    return local_ai(topic, minutes)
 
 # =====================================================
 # UI
 # =====================================================
 st.set_page_config("AI Learning Coach", layout="centered")
-st.caption("AI Learning Coach • Hybrid Mode • Stable")
+st.caption("AI Learning Coach • v1.0 • Stable")
 
-page = st.sidebar.radio("Navigate", [
-    "Today", "Study", "Practice", "History", "About"
-])
-
-current_topic = SYLLABUS[progress["current_index"]]
+page = st.sidebar.radio(
+    "Navigate",
+    ["Today", "Study", "Practice", "History", "About"]
+)
 
 # =====================================================
 # TODAY
@@ -111,7 +109,12 @@ if page == "Today":
 
     if progress["today_done"]:
         st.success("You’re done for today. See you tomorrow 🌙")
-        st.write(f"Next topic: **{current_topic}**")
+
+        if current_topic != "Revision":
+            st.write(f"Next topic: **{current_topic}**")
+        else:
+            st.info("You finished syllabus 🎉 Start revision.")
+
     else:
         st.markdown(f"""
 ### 🎯 Today’s focus
@@ -119,9 +122,9 @@ if page == "Today":
 
 ⏱ 30 minutes is enough.
 """)
-        if st.button("Start"):
-            st.session_state.page = "Study"
-            st.rerun()
+
+        if st.button("Start study"):
+            st.switch_page("Study")
 
 # =====================================================
 # STUDY
@@ -130,15 +133,15 @@ elif page == "Study":
     st.header("📘 Study")
 
     st.write(f"Topic: **{current_topic}**")
-    minutes = st.slider("Time spent", 10, 60, 30)
+    minutes = st.slider("Time spent (minutes)", 10, 60, 30)
 
-    if st.button("Analyze"):
-        st.info(analyze(current_topic, minutes))
+    if st.button("Show study guide"):
+        st.info(study_guide(current_topic, minutes))
         progress["study_minutes"] = minutes
         save_progress(progress)
 
     if st.button("Finish study"):
-        st.success("Study done. Go to practice 👇")
+        st.success("Study done. Now practice 👇")
 
 # =====================================================
 # PRACTICE
@@ -146,30 +149,30 @@ elif page == "Study":
 elif page == "Practice":
     st.header("🧩 Practice")
 
-    questions = PRACTICE[current_topic]
-    completed = []
+    questions = PRACTICE.get(current_topic, [])
 
-    for q in questions:
-        completed.append(st.checkbox(q))
+    if not questions:
+        st.info("No practice today. Revision day.")
+    else:
+        completed = []
+        for q in questions:
+            completed.append(st.checkbox(q))
 
-    if all(completed):
-        st.success("Practice complete 🎉")
+        if all(completed):
+            st.success("Practice complete 🎉")
 
-        progress["today_done"] = True
-        progress["streak"] += 1
-        progress["history"].append({
-            "date": str(date.today()),
-            "topic": current_topic,
-            "minutes": progress.get("study_minutes", 0)
-        })
+            progress["today_done"] = True
+            progress["streak"] += 1
+            progress["history"].append({
+                "date": today,
+                "topic": current_topic,
+                "minutes": progress.get("study_minutes", 0)
+            })
 
-        progress["current_index"] = min(
-            progress["current_index"] + 1,
-            len(SYLLABUS) - 1
-        )
+            progress["current_index"] += 1
+            save_progress(progress)
 
-        save_progress(progress)
-        st.info("You’re done for today. See you tomorrow 🌱")
+            st.info("You’re done for today. See you tomorrow 🌱")
 
 # =====================================================
 # HISTORY
@@ -193,14 +196,13 @@ elif page == "About":
 A **simple daily study guide for students who feel stuck**.
 
 This app:
-- guides you daily
+- tells you what to study
 - removes decision fatigue
 - gives closure
 - remembers progress
 - works offline
-- works without API
 - works on mobile
-- upgrades automatically when AI is available
+- never crashes
 
-Built with ❤️ by Hemanth.
+Built with ❤️ by Hemanth
 """)
