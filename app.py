@@ -1,212 +1,129 @@
 import streamlit as st
 import json
-import os
 from datetime import date
+from pathlib import Path
 
-# =====================================================
-# SESSION NAVIGATION (AUTO SWITCH)
-# =====================================================
-if "page" not in st.session_state:
-    st.session_state.page = "Today"
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="Daily Study OS", layout="centered")
 
-# =====================================================
-# CONFIG
-# =====================================================
-DATA_DIR = "data"
-DATA_FILE = os.path.join(DATA_DIR, "progress.json")
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+DATA_FILE = DATA_DIR / "study_log.json"
 
-SYLLABUS = [
-    "Arrays", "Strings", "Recursion", "Sorting", "Searching", "Linked List"
-]
+# ---------------- HELPERS ----------------
+def load_data():
+    if DATA_FILE.exists():
+        return json.loads(DATA_FILE.read_text())
+    return {
+        "current_phase": None,
+        "history": []
+    }
 
-PRACTICE = {
-    "Arrays": ["Reverse array", "Find max element", "Two sum"],
-    "Strings": ["Reverse string", "Check palindrome", "Char frequency"],
-    "Recursion": ["Factorial", "Fibonacci", "Sum of digits"],
-    "Sorting": ["Bubble sort", "Selection sort", "Insertion sort"],
-    "Searching": ["Linear search", "Binary search", "First occurrence"],
-    "Linked List": ["Insert node", "Delete node", "Reverse list"]
-}
+def save_data(data):
+    DATA_FILE.write_text(json.dumps(data, indent=2))
 
-# =====================================================
-# STORAGE (SAFE)
-# =====================================================
-def load_progress():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if not os.path.exists(DATA_FILE):
-        return {
-            "history": [],
-            "current_index": 0,
-            "today_done": False,
-            "last_date": ""
-        }
-    try:
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {
-            "history": [],
-            "current_index": 0,
-            "today_done": False,
-            "last_date": ""
-        }
+data = load_data()
 
-def save_progress(data):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+# ---------------- HEADER ----------------
+st.markdown("## 📘 Daily Study OS")
+st.caption("A simple daily guide for students who feel stuck")
 
-progress = load_progress()
+st.divider()
 
-# =====================================================
-# DAILY RESET
-# =====================================================
-today = str(date.today())
-if progress.get("last_date") != today:
-    progress["today_done"] = False
-    progress["last_date"] = today
-    save_progress(progress)
+# ---------------- PHASE SETUP ----------------
+if not data["current_phase"]:
+    st.markdown("### 🎯 Set your current learning phase")
+    phase = st.text_input(
+        "Example: Placement Prep, Exam Revision, Learning Something New"
+    )
 
-# =====================================================
-# SAFE CURRENT TOPIC
-# =====================================================
-if progress["current_index"] >= len(SYLLABUS):
-    current_topic = "Revision"
-else:
-    current_topic = SYLLABUS[progress["current_index"]]
-
-# =====================================================
-# STUDY GUIDE
-# =====================================================
-def study_guide(topic, minutes):
-    return f"""
-📘 **Study Guide – {topic}**
-
-1. Read definition
-2. Understand 2 examples
-3. Write code by hand
-4. Solve practice questions
-
-⏱ {minutes} minutes is enough.
-"""
-
-# =====================================================
-# UI
-# =====================================================
-st.set_page_config("AI Learning Coach", layout="centered")
-st.title("🎓 AI Learning Coach")
-st.caption("v1.0 • Guided • Offline-first")
-
-page = st.sidebar.radio(
-    "Navigate",
-    ["Today", "Study", "Practice", "History", "About"],
-    index=["Today", "Study", "Practice", "History", "About"].index(st.session_state.page)
-)
-st.session_state.page = page
-
-# =====================================================
-# TODAY
-# =====================================================
-if page == "Today":
-    st.header("🌱 Today")
-
-    if progress["today_done"]:
-        st.success("You’re done for today. See you tomorrow 🌙")
-        st.write(f"Next topic: **{current_topic}**")
-    else:
-        st.markdown(f"""
-### 🎯 Today’s focus
-**{current_topic}**
-
-⏱ 30 minutes is enough.
-""")
-
-        if st.button("Start study"):
-            st.session_state.page = "Study"
+    if st.button("Start Phase"):
+        if phase.strip():
+            data["current_phase"] = phase.strip()
+            save_data(data)
             st.rerun()
+    st.stop()
 
-# =====================================================
-# STUDY
-# =====================================================
-elif page == "Study":
-    st.header("📘 Study")
-    st.write(f"Topic: **{current_topic}**")
+# ---------------- PHASE BAR ----------------
+col1, col2 = st.columns([3,1])
+col1.markdown(f"**Current Phase:** {data['current_phase']}")
+if col2.button("Change"):
+    data["current_phase"] = None
+    save_data(data)
+    st.rerun()
 
-    minutes = st.slider("Time spent (minutes)", 10, 60, 30)
+st.divider()
 
-    if st.button("Show study guide"):
-        st.info(study_guide(current_topic, minutes))
-        progress["study_minutes"] = minutes
-        save_progress(progress)
+# ---------------- STREAK ----------------
+unique_days = {h["date"] for h in data["history"]}
+st.markdown(f"🔥 **Streak:** {len(unique_days)} days")
 
-    if st.button("Finish study"):
-        st.session_state.page = "Practice"
-        st.rerun()
+st.divider()
 
-# =====================================================
-# PRACTICE
-# =====================================================
-elif page == "Practice":
-    st.header("🧩 Practice")
+# ---------------- TODAY ----------------
+today_done = any(h["date"] == str(date.today()) for h in data["history"])
 
-    questions = PRACTICE.get(current_topic, [])
+st.markdown("### 📌 Today's Focus")
 
-    if not questions:
-        st.info("Revision day – no practice today.")
-        if st.button("Finish"):
-            progress["today_done"] = True
-            save_progress(progress)
-            st.session_state.page = "Today"
-            st.rerun()
+if not today_done:
+    topic = st.text_input("What are you studying today?")
 
-    else:
-        completed = []
-        for q in questions:
-            completed.append(st.checkbox(q))
-
-        if completed and all(completed):
-            st.success("Practice complete 🎉")
-
-            progress["today_done"] = True
-            progress["history"].append({
-                "date": today,
-                "topic": current_topic,
-                "minutes": progress.get("study_minutes", 0)
+    if st.button("Mark as Done"):
+        if topic.strip():
+            data["history"].append({
+                "date": str(date.today()),
+                "topic": topic.strip(),
+                "status": "done"
             })
-            progress["current_index"] += 1
-            save_progress(progress)
-
-            st.session_state.page = "Today"
+            save_data(data)
+            st.success("You’re done for today 🌱")
+            st.info("Rest well. Come back tomorrow for the next small step.")
             st.rerun()
+else:
+    st.success("✅ You already completed today’s study.")
+    st.info("See you tomorrow 🌱")
 
-# =====================================================
-# HISTORY
-# =====================================================
-elif page == "History":
-    st.header("📚 History")
-    if not progress["history"]:
-        st.info("No history yet")
-    else:
-        for h in reversed(progress["history"]):
-            st.write(f"• {h['date']} – {h['topic']} – {h['minutes']} min")
+# ---------------- HISTORY ----------------
+st.divider()
+st.markdown("### 📅 Recent History")
 
-# =====================================================
-# ABOUT
-# =====================================================
-elif page == "About":
+if data["history"]:
+    for item in reversed(data["history"][-7:]):
+        st.write(f"✅ {item['date']} — {item['topic']}")
+else:
+    st.info("No history yet. Start today.")
+
+# ---------------- NEXT PREVIEW ----------------
+if data["history"]:
+    last_topic = data["history"][-1]["topic"]
+    st.divider()
+    st.markdown("### 🔮 Tomorrow")
+    st.write(f"Continue from **{last_topic}** or choose something new.")
+
+# ---------------- EXPORT ----------------
+st.divider()
+st.markdown("### ⬇️ Backup Your Data")
+
+st.download_button(
+    "Download Study History",
+    json.dumps(data, indent=2),
+    "study_history.json"
+)
+
+# ---------------- ABOUT ----------------
+with st.expander("ℹ️ About Daily Study OS"):
     st.markdown("""
-## 🎓 AI Learning Coach
+**Daily Study OS** is built for real students who feel stuck.
 
-A simple daily study guide for students who feel stuck.
+It helps you:
+- focus on just today
+- finish one thing
+- feel progress
+- come back tomorrow
 
-### Why this works
-- tells you what to study
-- removes overthinking
-- gives closure
-- builds consistency
-- works offline
-- works on mobile
-- never crashes
+No syllabus.  
+No pressure.  
+No limits.  
 
-Built with ❤️ by **Hemanth**
+Built with ❤️ for consistency, not perfection.
 """)
