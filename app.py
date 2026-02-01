@@ -4,7 +4,7 @@ import os
 from datetime import date
 
 # =====================================================
-# CONFIG
+# BASIC CONFIG
 # =====================================================
 DATA_DIR = "data"
 DATA_FILE = os.path.join(DATA_DIR, "progress.json")
@@ -23,20 +23,17 @@ PRACTICE = {
 }
 
 # =====================================================
-# STORAGE (SAFE, CLOUD SAFE)
+# SAFE STORAGE
 # =====================================================
 def load_progress():
     os.makedirs(DATA_DIR, exist_ok=True)
-
     if not os.path.exists(DATA_FILE):
         return {
             "history": [],
             "current_index": 0,
             "today_done": False,
-            "streak": 0,
             "last_date": ""
         }
-
     try:
         with open(DATA_FILE, "r") as f:
             return json.load(f)
@@ -45,7 +42,6 @@ def load_progress():
             "history": [],
             "current_index": 0,
             "today_done": False,
-            "streak": 0,
             "last_date": ""
         }
 
@@ -57,7 +53,7 @@ def save_progress(data):
 progress = load_progress()
 
 # =====================================================
-# DAILY RESET (SAFE)
+# DAILY RESET
 # =====================================================
 today = str(date.today())
 if progress.get("last_date") != today:
@@ -66,7 +62,7 @@ if progress.get("last_date") != today:
     save_progress(progress)
 
 # =====================================================
-# SAFE CURRENT TOPIC
+# CURRENT TOPIC (SAFE)
 # =====================================================
 if progress["current_index"] >= len(SYLLABUS):
     current_topic = "Revision"
@@ -78,14 +74,12 @@ else:
 # =====================================================
 def study_guide(topic, minutes):
     return f"""
-### 📘 Study Guide
-
-**Topic:** {topic}
+📘 **Study Guide – {topic}**
 
 1. Read definition
 2. Understand 2 examples
 3. Write code by hand
-4. Solve practice
+4. Solve practice questions
 
 ⏱ {minutes} minutes is enough.
 """
@@ -93,8 +87,9 @@ def study_guide(topic, minutes):
 # =====================================================
 # UI
 # =====================================================
-st.set_page_config("AI Learning Coach", layout="centered")
-st.caption("AI Learning Coach • v1.0 • Stable")
+st.set_page_config(page_title="AI Learning Coach", layout="centered")
+st.title("🎓 AI Learning Coach")
+st.caption("v1.0 • Stable • Offline-first")
 
 page = st.sidebar.radio(
     "Navigate",
@@ -113,7 +108,7 @@ if page == "Today":
         if current_topic != "Revision":
             st.write(f"Next topic: **{current_topic}**")
         else:
-            st.info("You finished syllabus 🎉 Start revision.")
+            st.info("You finished all topics 🎉 Start revision.")
 
     else:
         st.markdown(f"""
@@ -123,8 +118,7 @@ if page == "Today":
 ⏱ 30 minutes is enough.
 """)
 
-        if st.button("Start study"):
-            st.switch_page("Study")
+        st.info("Go to **Study** tab in sidebar to begin.")
 
 # =====================================================
 # STUDY
@@ -141,7 +135,7 @@ elif page == "Study":
         save_progress(progress)
 
     if st.button("Finish study"):
-        st.success("Study done. Now practice 👇")
+        st.success("Study done. Now go to **Practice**")
 
 # =====================================================
 # PRACTICE
@@ -152,17 +146,16 @@ elif page == "Practice":
     questions = PRACTICE.get(current_topic, [])
 
     if not questions:
-        st.info("No practice today. Revision day.")
+        st.info("Revision day – no practice today.")
     else:
         completed = []
         for q in questions:
             completed.append(st.checkbox(q))
 
-        if all(completed):
+        if completed and all(completed):
             st.success("Practice complete 🎉")
 
             progress["today_done"] = True
-            progress["streak"] += 1
             progress["history"].append({
                 "date": today,
                 "topic": current_topic,
@@ -184,18 +177,17 @@ elif page == "History":
         st.info("No history yet")
     else:
         for h in reversed(progress["history"]):
-            st.write(f"- {h['date']} • {h['topic']} • {h['minutes']} min")
+            st.write(f"• {h['date']} – {h['topic']} – {h['minutes']} min")
 
 # =====================================================
 # ABOUT
 # =====================================================
 elif page == "About":
     st.markdown("""
-# 🎓 AI Learning Coach
+## 🎓 AI Learning Coach
 
-A **simple daily study guide for students who feel stuck**.
+A simple daily study guide for students who feel stuck.
 
-This app:
 - tells you what to study
 - removes decision fatigue
 - gives closure
@@ -204,5 +196,5 @@ This app:
 - works on mobile
 - never crashes
 
-Built with ❤️ by Hemanth
+Built with ❤️ by **Hemanth**
 """)
