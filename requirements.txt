@@ -1,8 +1,0 @@
-//streamlit>=1.30
-//pandas
-//matplotlib
-//numpy
-//pypdf
-//python-dotenv
-//openai
-streamlit>=1.30
